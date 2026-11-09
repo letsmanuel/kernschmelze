@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Kernschmelze</title>
+  <meta name="description" content="Wellen-Shooter: Halte den Reaktor der gefallenen Station am Leben.">
+  <meta name="theme-color" content="#05090f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kernschmelze">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="hidden">
+    <div id="vignette"></div>
+    <div id="lowhp"></div>
+    <div id="speedlines"></div>
+    <div id="flash"></div>
+    <div id="dmgdir"></div>
+    <div id="numbers"></div>
+
+    <div id="crosshair">
+      <i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i>
+      <svg id="reloadring" viewBox="0 0 64 64" aria-hidden="true"><circle class="bg" cx="32" cy="32" r="26"/><circle id="reloadarc" cx="32" cy="32" r="26"/></svg>
+      <div id="hitmark"></div>
+      <div id="killtag"></div>
+    </div>
+
+    <div id="scorebox">
+      <div class="label">Punkte</div>
+      <div id="score">0</div>
+      <div id="gains"></div>
+      <div id="combo"><span id="combotext"></span><i id="combobar"></i></div>
+    </div>
+
+    <div id="wavebox">
+      <div id="wave">Welle 1</div>
+      <div class="bar wavebar"><b id="wavebar"></b></div>
+      <div id="remaining"></div>
+    </div>
+
+    <div id="bossbox" class="hidden">
+      <div class="label">Wächter</div>
+      <div class="bar"><i class="chip" id="bosschip"></i><b id="bossbar"></b></div>
+    </div>
+
+    <canvas id="radar" width="168" height="168"></canvas>
+
+    <div id="toasts"></div>
+
+    <div id="vitals">
+      <div class="row">
+        <span class="label">Hülle</span>
+        <div class="bar hp"><i class="chip" id="hpchip"></i><b id="hpbar"></b></div>
+        <span id="hpnum" class="num">100</span>
+      </div>
+      <div class="row">
+        <span class="label">Reaktor</span>
+        <div class="bar core"><i class="chip" id="corechip"></i><b id="corebar"></b></div>
+        <span id="corenum" class="num">100 %</span>
+      </div>
+      <div class="row">
+        <span class="label">Schub</span>
+        <div class="bar dash"><b id="dashbar"></b></div>
+        <span class="num key">⇧</span>
+      </div>
+    </div>
+
+    <div id="weaponbox">
+      <div id="ammohint"></div>
+      <div id="ammo"><span id="mag">14</span><small id="reserve">∞</small></div>
+      <div id="wname">Impuls</div>
+      <div id="slots"></div>
+    </div>
+
+    <div id="banner"><i class="line"></i><h2 id="bannerT"></h2><p id="bannerS"></p></div>
+    <div id="notice"></div>
+  </div>
+
+  <div id="touch" class="hidden">
+    <div id="tstick"><div id="tknob"></div></div>
+    <button id="tpause" class="tbtn" aria-label="Pause">❚❚</button>
+    <button id="tfire" class="tbtn" aria-label="Feuer">Feuer</button>
+    <button id="tjump" class="tbtn" aria-label="Springen">Sprung</button>
+    <button id="tdash" class="tbtn" aria-label="Schub">Schub</button>
+    <button id="treload" class="tbtn" aria-label="Nachladen">Laden</button>
+    <button id="tswap" class="tbtn" aria-label="Waffe wechseln">Waffe</button>
+  </div>
+
+  <section id="menu" class="overlay">
+    <div class="panel">
+      <h1>Kern<span>schmelze</span></h1>
+      <p class="lead">Die Station ist gefallen, nur der Reaktor läuft noch. Halte ihn am Leben, so lange du kannst.</p>
+      <div id="diff" role="radiogroup" aria-label="Schwierigkeit">
+        <button data-d="easy" role="radio"><b>Leicht</b><small>250 Hülle</small></button>
+        <button data-d="normal" role="radio"><b>Mittel</b><small>175 Hülle</small></button>
+        <button data-d="hard" role="radio"><b>Schwer</b><small>100 Hülle · Punkte ×1,5</small></button>
+      </div>
+      <button id="startBtn" class="primary">Einsatz starten</button>
+      <button id="settingsBtn" class="ghost">Einstellungen</button>
+      <p id="best" class="best"></p>
+      <div class="keys desk">
+        <div><kbd>W A S D</kbd> Laufen</div>
+        <div><kbd>Maus</kbd> Zielen und feuern</div>
+        <div><kbd>Leertaste</kbd> Springen</div>
+        <div><kbd>Umschalt</kbd> Schub (Ausweichen)</div>
+        <div><kbd>R</kbd> Nachladen</div>
+        <div><kbd>1–4</kbd> / <kbd>Mausrad</kbd> Waffe wechseln</div>
+        <div><kbd>M</kbd> Ton · <kbd>N</kbd> Musik</div>
+        <div><kbd>Esc</kbd> Pause</div>
+      </div>
+      <div class="keys touchkeys">
+        <div><b>Linker Daumen</b> Laufen</div>
+        <div><b>Rechter Daumen</b> Umsehen</div>
+        <div><b>Feuer</b> gedrückt halten, dabei zielen</div>
+        <div><b>Sprung · Schub · Laden · Waffe</b></div>
+      </div>
+      <p class="hint">Die Musik startet nach dem ersten Klick. Leuchtende Schwachstellen nehmen doppelten Schaden. Zwischen den Wellen läufst du durch eine der Säulen, um ein Upgrade zu wählen. Brecher greifen gezielt den Reaktor an.</p>
+    </div>
+  </section>
+
+  <section id="pause" class="overlay center hidden">
+    <div class="panel small">
+      <h2>Pause</h2>
+      <button id="resumeBtn" class="primary">Weiterspielen</button>
+      <button id="pauseSettingsBtn">Einstellungen</button>
+      <button id="quitBtn">Einsatz abbrechen</button>
+      <p id="lockhint" class="warn hidden">Der Browser gibt die Maus noch nicht frei. Klick in einer Sekunde noch einmal.</p>
+    </div>
+  </section>
+
+  <section id="over" class="overlay center hidden">
+    <div class="panel small">
+      <h2 id="overT">Reaktor zerstört</h2>
+      <div id="overScore" class="bigscore">0</div>
+      <p id="overNew" class="newbest hidden">Neuer Rekord!</p>
+      <dl>
+        <dt>Schwierigkeit</dt><dd id="oDiff">Mittel</dd>
+        <dt>Erreichte Welle</dt><dd id="oWave">1</dd>
+        <dt>Abschüsse</dt><dd id="oKills">0</dd>
+        <dt>Trefferquote</dt><dd id="oAcc">0 %</dd>
+        <dt>Höchste Combo</dt><dd id="oCombo">×1</dd>
+      </dl>
+      <button id="retryBtn" class="primary">Neuer Versuch</button>
+      <button id="menuBtn">Zum Hauptmenü</button>
+    </div>
+  </section>
+
+  <section id="settings" class="overlay center hidden">
+    <div class="panel settings">
+      <h2>Einstellungen</h2>
+      <div class="set">
+        <div class="set-label">Grafikqualität <small id="gfxDetected"></small></div>
+        <div class="seg" id="gfxPreset" role="radiogroup" aria-label="Grafikqualität">
+          <button data-v="auto" role="radio">Auto</button><button data-v="low" role="radio">Niedrig</button><button data-v="medium" role="radio">Mittel</button><button data-v="high" role="radio">Hoch</button><button data-v="ultra" role="radio">Ultra</button>
+        </div>
+      </div>
+      <label class="set range">Auflösung
+        <input id="gfxRes" type="range" min="0.5" max="1" step="0.05" value="1"><output id="gfxResOut">100 %</output>
+      </label>
+      <div class="set">
+        <div class="set-label">Schatten</div>
+        <div class="seg" id="gfxShadows" role="radiogroup" aria-label="Schatten">
+          <button data-v="0" role="radio">Aus</button><button data-v="1" role="radio">Weich</button><button data-v="2" role="radio">Scharf</button><button data-v="3" role="radio">Maximal</button>
+        </div>
+      </div>
+      <div class="set">
+        <div class="set-label">Effekte</div>
+        <div class="seg" id="gfxFx" role="radiogroup" aria-label="Effekte">
+          <button data-v="0.45" role="radio">Wenig</button><button data-v="0.7" role="radio">Normal</button><button data-v="1" role="radio">Voll</button>
+        </div>
+      </div>
+      <label class="set range" id="sensLabel">Mausempfindlichkeit
+        <input id="sens" type="range" min="0.3" max="2.5" step="0.05" value="1">
+      </label>
+      <label class="set range">Musiklautstärke
+        <input id="musicVol" type="range" min="0" max="1" step="0.05" value="0.6">
+      </label>
+      <div class="set">
+        <div class="set-label">Zielhilfe</div>
+        <div class="seg" id="aimAssist" role="radiogroup" aria-label="Zielhilfe">
+          <button data-v="0" role="radio">Aus</button><button data-v="1" role="radio">Adaptiv</button>
+        </div>
+        <p class="set-note">Greift unauffällig ein, wenn es gerade nicht so gut läuft.</p>
+      </div>
+      <p class="set-note">Die Kantenglättung richtet sich nach der Qualitätsstufe und ändert sich erst nach einem Neuladen.</p>
+      <button id="settingsBack" class="primary">Fertig</button>
+    </div>
+  </section>
+
+  <section id="install" class="overlay center hidden">
+    <div class="panel small install">
+      <h1>Kern<span>schmelze</span></h1>
+      <p class="lead">Auf dem Handy läuft Kernschmelze als App im Vollbild. Installiere sie einmal, danach startest du sie wie jede andere App.</p>
+      <button id="installBtn" class="primary hidden">Jetzt installieren</button>
+      <ol id="installSteps" class="steps"></ol>
+      <p id="installNote" class="hint"></p>
+    </div>
+  </section>
+
+  <div id="rotate" aria-live="polite">
+    <div class="phone"></div>
+    <p>Dreh dein Gerät ins Querformat</p>
+  </div>
+
+  <div id="error" class="overlay center hidden"><div class="panel small"><h2>Start nicht möglich</h2><p id="errorText"></p></div></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="music.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
