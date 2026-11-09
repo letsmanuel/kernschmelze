@@ -466,3 +466,12 @@ body.mobile #tswap { display: block; }
   body.mobile .seg button { padding: 6px 4px; font-size: 13px; }
   body.mobile .set { margin-bottom: 8px; }
 }
+
+#killcall {
+  position: absolute; left: 50%; top: 38%; opacity: 0; pointer-events: none; white-space: nowrap;
+  font: 700 34px 'Chakra Petch', sans-serif; letter-spacing: .08em; font-style: italic;
+  color: var(--kc, #fff); transform: translate(-50%, -50%);
+  text-shadow: 0 0 18px var(--kc, #fff), 3px 3px 0 #000, -1px -1px 0 #000;
+}
+body.mobile #killcall { font-size: 22px; }
+#game { transform-origin: 50% 50%; }

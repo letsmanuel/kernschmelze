@@ -595,10 +595,13 @@
     kill() { this.tone(420, 880, .12, 'triangle', .22); },
     // knackiger Abschuss-Impact: Crunch + tiefer Schlag, skaliert mit Wucht
     smash(k) {
-      this.burst(.07 + k * .03, .45 + k * .15, 4200, 'highpass');
-      this.burst(.12, .5, 900, 'bandpass');
-      this.tone(160, 38, .18 + k * .08, 'sine', .55 + k * .2);
-      this.tone(2600, 600, .05, 'square', .07);
+      this.burst(.06 + k * .03, .7 + k * .2, 5200, 'highpass');
+      this.burst(.16, .8, 700, 'bandpass');
+      this.burst(.3 + k * .1, .6, 220);
+      this.tone(220, 30, .25 + k * .1, 'sine', .9 + k * .2);
+      this.tone(80, 22, .45, 'sine', .7);
+      this.tone(3200, 400, .06, 'sawtooth', .12);
+      this.tone(140, 45, .12, 'square', .25);
     },
     boom(g = .7) { this.burst(.55, g, 620); this.tone(95, 28, .5, 'sine', g); },
     hurt() { this.tone(180, 70, .18, 'sawtooth', .28); this.burst(.1, .2, 900); },
@@ -1841,24 +1844,53 @@
 
   // Abschuss-Wucht: Freeze-Frame, Kamera-Punch, FOV-Snap, Kill-Flash, Waffenruck.
   // Schnelle Folge-Kills (Multikill) steigern die Intensität.
-  let multiKill = 0, multiKillT = 0;
+  let multiKill = 0, multiKillT = 0, lastFrameFx = 0;
+  const gameCanvas = $('game');
+  const CALLS = ['KILL', 'DOUBLE KILL', 'TRIPLE KILL', 'MULTIKILL', 'MASSAKER', 'ULTRAKILL'];
+  function killCall(text, k) {
+    const n = el.killcall;
+    n.textContent = text;
+    n.style.setProperty('--kc', k > 1.2 ? '#ff2a1a' : k > .8 ? '#ff8a3d' : '#ffffff');
+    anim(n, [
+      { opacity: 1, transform: `translate(-50%, -50%) scale(${2.4 + k * .4}) rotate(${rand(-9, 9)}deg)` },
+      { opacity: 1, transform: 'translate(-50%, -50%) scale(1) rotate(0)', offset: .18 },
+      { opacity: 1, transform: 'translate(-50%, -50%) scale(1.04)', offset: .7 },
+      { opacity: 0, transform: 'translate(-50%, -62%) scale(.96)' },
+    ], { duration: 700 + k * 200, easing: 'cubic-bezier(.15, .9, .3, 1)' });
+  }
   function killImpact(e, big, cx, cy, cz) {
     multiKill = multiKillT > 0 ? multiKill + 1 : 0;
     multiKillT = .55;
     const boss = e.kind === 'boss';
     const k = clamp(big / 2.6 + multiKill * .3, .35, boss ? 3 : 1.6);
-    hitStop = Math.max(hitStop, boss ? .32 : .035 + k * .045);
-    shake = Math.max(shake, .25 + k * .25);
-    camera.fov -= boss ? 9 : 2.5 + k * 2.5; camera.updateProjectionMatrix();
-    vm.punchV += .9 + k * .5;
-    vm.kickV += .5 + k * .4;
-    vm.rollV += rand(-1, 1) * 4 * k;
-    screenFlash = Math.max(screenFlash, .06 + k * .05);
-    killFlash = Math.min(1, Math.max(killFlash, .45 + k * .3));
-    sparks(cx, cy, cz, Math.round(14 + k * 16), e.def.color, 9 + k * 5, .45, 0, 1, 0, 1);
-    sparks(cx, cy, cz, Math.round(6 + k * 6), 0xfff2d8, 14 + k * 4, .2, 0, 1, 0, 1);
-    ringAt(cx, cy, cz, 1.2 + k * 1.4, e.def.color, .22);
+    hitStop = Math.max(hitStop, boss ? .4 : .06 + k * .06);
+    shake = Math.max(shake, .45 + k * .35);
+    camera.fov -= boss ? 14 : 5 + k * 4; camera.updateProjectionMatrix();
+    vm.punchV += 1.6 + k * .9;
+    vm.kickV += .9 + k * .6;
+    vm.rollV += rand(-1, 1) * 7 * k;
+    screenFlash = Math.max(screenFlash, .12 + k * .08);
+    killFlash = Math.min(1, Math.max(killFlash, .6 + k * .3));
+    sparks(cx, cy, cz, Math.round(24 + k * 24), e.def.color, 12 + k * 6, .55, 0, 1, 0, 1);
+    sparks(cx, cy, cz, Math.round(10 + k * 10), 0xfff2d8, 18 + k * 5, .25, 0, 1, 0, 1);
+    burst(cx, cy, cz, Math.round(10 + k * 10), e.def.color, 7 + k * 4, .7);
+    ringAt(cx, cy, cz, 1.6 + k * 2, e.def.color, .25);
+    ringAt(cx, .08, cz, 2.5 + k * 3, 0xfff2d8, .35);
+    // Spritzer auf dem Boden
+    for (let i = 0; i < 2 + Math.round(k * 2); i++) decal(cx + rand(-1.4, 1.4) * k, .02, cz + rand(-1.4, 1.4) * k, 0, 1, 0, .6 + k * .7, e.def.color);
     Snd.smash(Math.min(k, 2));
+    // Impact-Frame: kurz invertiert/übersättigt + Zoom-Ruck (gedrosselt für Ultrakill-Fluten)
+    const now = performance.now();
+    if (now - lastFrameFx > 110) {
+      lastFrameFx = now;
+      const hard = boss || k >= 1 || multiKill >= 1;
+      anim(gameCanvas, [
+        { filter: hard ? 'invert(1) contrast(1.8)' : 'brightness(2.2) contrast(1.6) saturate(2)', transform: `scale(${1.05 + k * .03}) rotate(${rand(-1, 1) * k}deg)` },
+        { filter: 'contrast(1.5) saturate(2.2)', transform: `scale(${1.02 + k * .015})`, offset: .3 },
+        { filter: 'none', transform: 'none' },
+      ], { duration: 160 + k * 90, easing: 'cubic-bezier(.1, .8, .3, 1)' });
+    }
+    killCall(boss ? 'ZERSCHMETTERT' : e.kind === 'brute' && multiKill === 0 ? 'BRUTAL' : CALLS[Math.min(multiKill, CALLS.length - 1)], k);
   }
 
   function steer(e, tx, tz, field, dt) {
@@ -2316,7 +2348,7 @@
     vignette: $('vignette'), lowhp: $('lowhp'), dmgdir: $('dmgdir'), crosshair: $('crosshair'), hitmark: $('hitmark'),
     killtag: $('killtag'), reloadring: $('reloadring'), reloadarc: $('reloadarc'), banner: $('banner'), bannerT: $('bannerT'),
     bannerS: $('bannerS'), bannerLine: document.querySelector('#banner .line'), notice: $('notice'), radar: $('radar'),
-    numbers: $('numbers'), toasts: $('toasts'), flash: $('flash'), killflash: $('killflash'), speedlines: $('speedlines'), hud: $('hud'),
+    numbers: $('numbers'), toasts: $('toasts'), flash: $('flash'), killflash: $('killflash'), killcall: $('killcall'), speedlines: $('speedlines'), hud: $('hud'),
   };
   // kurze Animationen über die Web Animations API, damit sie sich beliebig neu starten lassen
   const anim = (node, kf, opt) => { if (!reducedMotion && node && node.animate) return node.animate(kf, opt); return null; };
@@ -3366,7 +3398,7 @@
     if (state === 'playing') {
       // kurzer Trefferstopp bei großen Abschüssen
       let slow = 1;
-      if (hitStop > 0) { hitStop -= real; slow = dying > 0 ? .08 : .015; }
+      if (hitStop > 0) { hitStop -= real; slow = dying > 0 ? .08 : 0; }
       multiKillT -= real;
       const dt = real * timeScale * slow;
       updatePlayer(dt);
