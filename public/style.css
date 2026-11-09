@@ -474,4 +474,5 @@ body.mobile #tswap { display: block; }
   text-shadow: 0 0 18px var(--kc, #fff), 3px 3px 0 #000, -1px -1px 0 #000;
 }
 body.mobile #killcall { font-size: 22px; }
-#game { transform-origin: 50% 50%; }
+#game { transform-origin: 50% 50%; will-change: transform; }
+#invert { position: absolute; inset: 0; opacity: 0; pointer-events: none; background: #fff; mix-blend-mode: difference; will-change: opacity; }

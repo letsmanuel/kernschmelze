@@ -1844,7 +1844,7 @@
 
   // Abschuss-Wucht: Freeze-Frame, Kamera-Punch, FOV-Snap, Kill-Flash, Waffenruck.
   // Schnelle Folge-Kills (Multikill) steigern die Intensität.
-  let multiKill = 0, multiKillT = 0, lastFrameFx = 0;
+  let multiKill = 0, multiKillT = 0, lastFrameFx = 0, impactExp = 0;
   const gameCanvas = $('game');
   const CALLS = ['KILL', 'DOUBLE KILL', 'TRIPLE KILL', 'MULTIKILL', 'MASSAKER', 'ULTRAKILL'];
   function killCall(text, k) {
@@ -1884,10 +1884,13 @@
     if (now - lastFrameFx > 110) {
       lastFrameFx = now;
       const hard = boss || k >= 1 || multiKill >= 1;
+      // nur GPU-günstige Mittel: Belichtung im Renderer, Invertierung per Blend-Overlay, Zoom per transform
+      impactExp = Math.max(impactExp, hard ? 1.2 : 1.6);
+      if (hard) anim(el.invert, [{ opacity: 1 }, { opacity: 1, offset: .35 }, { opacity: 0 }], { duration: 90 + k * 40 });
       anim(gameCanvas, [
-        { filter: hard ? 'invert(1) contrast(1.8)' : 'brightness(2.2) contrast(1.6) saturate(2)', transform: `scale(${1.05 + k * .03}) rotate(${rand(-1, 1) * k}deg)` },
-        { filter: 'contrast(1.5) saturate(2.2)', transform: `scale(${1.02 + k * .015})`, offset: .3 },
-        { filter: 'none', transform: 'none' },
+        { transform: `scale(${1.05 + k * .03}) rotate(${rand(-1, 1) * k}deg)` },
+        { transform: `scale(${1.02 + k * .015})`, offset: .3 },
+        { transform: 'none' },
       ], { duration: 160 + k * 90, easing: 'cubic-bezier(.1, .8, .3, 1)' });
     }
     killCall(boss ? 'ZERSCHMETTERT' : e.kind === 'brute' && multiKill === 0 ? 'BRUTAL' : CALLS[Math.min(multiKill, CALLS.length - 1)], k);
@@ -2348,7 +2351,7 @@
     vignette: $('vignette'), lowhp: $('lowhp'), dmgdir: $('dmgdir'), crosshair: $('crosshair'), hitmark: $('hitmark'),
     killtag: $('killtag'), reloadring: $('reloadring'), reloadarc: $('reloadarc'), banner: $('banner'), bannerT: $('bannerT'),
     bannerS: $('bannerS'), bannerLine: document.querySelector('#banner .line'), notice: $('notice'), radar: $('radar'),
-    numbers: $('numbers'), toasts: $('toasts'), flash: $('flash'), killflash: $('killflash'), killcall: $('killcall'), speedlines: $('speedlines'), hud: $('hud'),
+    numbers: $('numbers'), toasts: $('toasts'), flash: $('flash'), killflash: $('killflash'), killcall: $('killcall'), invert: $('invert'), speedlines: $('speedlines'), hud: $('hud'),
   };
   // kurze Animationen über die Web Animations API, damit sie sich beliebig neu starten lassen
   const anim = (node, kf, opt) => { if (!reducedMotion && node && node.animate) return node.animate(kf, opt); return null; };
@@ -2942,7 +2945,7 @@
     clearWorld();
     resetPlayer();
     Object.assign(hudM, { x: 0, y: 0, r: 0, vx: 0, vy: 0, vr: 0, yaw: P.yaw, pitch: P.pitch });
-    hitStop = 0; screenFlash = 0; speedFade = 0; killFlash = 0; multiKill = 0; multiKillT = 0;
+    hitStop = 0; screenFlash = 0; speedFade = 0; killFlash = 0; multiKill = 0; multiKillT = 0; impactExp = 0; renderer.toneMappingExposure = 1.2;
     Object.assign(vm, { kick: 0, kickV: 0, rot: 0, rotV: 0, roll: 0, rollV: 0, punch: 0, punchV: 0, heat: 0, pumpAge: -1, flash: 0 });
     shells.forEach(x => { x.m.visible = false; });
     decals.forEach(x => { x.m.visible = false; });
@@ -3400,6 +3403,10 @@
       let slow = 1;
       if (hitStop > 0) { hitStop -= real; slow = dying > 0 ? .08 : 0; }
       multiKillT -= real;
+      if (impactExp > 0) {
+        impactExp = Math.max(0, impactExp - real * 7);
+        renderer.toneMappingExposure = 1.2 * (1 + impactExp);
+      }
       const dt = real * timeScale * slow;
       updatePlayer(dt);
       updateDirector(dt);
