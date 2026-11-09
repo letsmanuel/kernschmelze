@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tight-thunder-cfe7",
+  "account_id": "a7c53dc48ef2c79ee58ba5c39dfd59a2",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public"
+  }
+}
