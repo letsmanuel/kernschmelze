@@ -214,15 +214,24 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
   mask: radial-gradient(circle, transparent 38%, #000 82%);
 }
 #flash { position: absolute; inset: 0; opacity: 0; background: #fff4e0; }
+#killflash {
+  position: absolute; inset: 0; opacity: 0; pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(255, 60, 40, .35) 70%, rgba(255, 30, 20, .7) 100%);
+}
 
 #scorebox, #wavebox, #bossbox, #radar, #vitals, #weaponbox, #banner, #notice, #crosshair { will-change: transform; }
 
-#diff { display: flex; gap: 6px; margin-bottom: 12px; max-width: 480px; }
+#diff { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; max-width: 620px; }
+#diff button { min-width: 120px; }
 #diff button { flex: 1; margin: 0; padding: 8px 6px; }
 #diff b { display: block; font-size: 17px; }
 #diff small { display: block; font-size: 12px; font-weight: 400; color: var(--dim); }
 #diff button.on { border-color: var(--amber); background: rgba(255, 179, 71, .18); }
 #diff button.on small { color: var(--ink); }
+#diff button.ultra b { color: #ff4d3d; letter-spacing: .04em; }
+#diff button.ultra.on { border-color: #ff4d3d; background: rgba(255, 60, 40, .2); }
+#diff button.locked { opacity: .45; cursor: not-allowed; filter: grayscale(.7); }
+.ultra-unlock { color: #ff4d3d !important; }
 .sens + .sens { margin-top: 8px; }
 
 /* ---------- Menüs ---------- */

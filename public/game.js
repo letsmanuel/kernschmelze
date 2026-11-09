@@ -593,6 +593,13 @@
     hit() { this.tone(1500, 1100, .04, 'square', .05); },
     crit() { this.tone(2100, 1500, .07, 'square', .08); },
     kill() { this.tone(420, 880, .12, 'triangle', .22); },
+    // knackiger Abschuss-Impact: Crunch + tiefer Schlag, skaliert mit Wucht
+    smash(k) {
+      this.burst(.07 + k * .03, .45 + k * .15, 4200, 'highpass');
+      this.burst(.12, .5, 900, 'bandpass');
+      this.tone(160, 38, .18 + k * .08, 'sine', .55 + k * .2);
+      this.tone(2600, 600, .05, 'square', .07);
+    },
     boom(g = .7) { this.burst(.55, g, 620); this.tone(95, 28, .5, 'sine', g); },
     hurt() { this.tone(180, 70, .18, 'sawtooth', .28); this.burst(.1, .2, 900); },
     pickup() { this.tone(640, 1280, .13, 'triangle', .22); },
@@ -841,7 +848,7 @@
     scene.add(m);
     rings.push({ m, life: 0, max: 1, size: 1 });
   }
-  let ringHead = 0, screenFlash = 0, speedFade = 0, hitStop = 0;
+  let ringHead = 0, screenFlash = 0, speedFade = 0, hitStop = 0, killFlash = 0;
   function ringAt(x, y, z, size, color, life) {
     const r = rings[ringHead]; ringHead = (ringHead + 1) % rings.length;
     r.m.position.set(x, y, z); r.m.material.color.set(color);
@@ -1395,8 +1402,13 @@
     easy: { label: 'Leicht', hp: 250, core: 600, dmg: .6, enemyHp: .8, score: .75 },
     normal: { label: 'Mittel', hp: 175, core: 480, dmg: .85, enemyHp: 1, score: 1 },
     hard: { label: 'Schwer', hp: 100, core: 400, dmg: 1.15, enemyHp: 1.2, score: 1.5 },
+    // Spaßmodus: Gegnerflut, unendlich Munition, kein Nachladen, Schub fast ohne Abklingzeit
+    ultra: { label: 'Ultrakill', hp: 300, core: 1200, dmg: .5, enemyHp: .6, score: .5, ultra: true },
   };
-  let diffKey = DIFFS[store.get('ks_diff', 'normal')] ? store.get('ks_diff', 'normal') : 'normal';
+  const ULTRA_UNLOCK = 2000;
+  const ultraUnlocked = () => ['easy', 'normal', 'hard'].some(k => (parseInt(store.get('ks_best_' + k, '0'), 10) || 0) >= ULTRA_UNLOCK);
+  let diffKey = store.get('ks_diff', 'normal');
+  if (!DIFFS[diffKey] || (diffKey === 'ultra' && !ultraUnlocked())) diffKey = 'normal';
   let diff = DIFFS[diffKey];
   let bestScore = 0;
   const showBest = () => { $('best').textContent = bestScore ? `Rekord auf „${diff.label}“: ${bestScore.toLocaleString('de-DE')} Punkte` : ''; };
@@ -1413,14 +1425,28 @@
     });
     showBest();
   }
-  diffButtons.forEach(b => { b.onclick = () => setDiff(b.dataset.d); });
+  function refreshUltraLock() {
+    const b = diffButtons.find(x => x.dataset.d === 'ultra');
+    if (!b) return;
+    const open = ultraUnlocked();
+    b.classList.toggle('locked', !open);
+    b.setAttribute('aria-disabled', open ? 'false' : 'true');
+    b.querySelector('small').textContent = open ? 'Unendlich Munition · Gegnerflut' : `🔒 ${ULTRA_UNLOCK.toLocaleString('de-DE')} Punkte nötig`;
+  }
+  diffButtons.forEach(b => {
+    b.onclick = () => {
+      if (b.dataset.d === 'ultra' && !ultraUnlocked()) { Snd.empty(); return; }
+      setDiff(b.dataset.d);
+    };
+  });
+  refreshUltraLock();
   setDiff(diffKey);
 
   function resetPlayer() {
     Object.assign(P, {
       x: 0, y: 0, z: 16, yaw: 0, pitch: 0, vx: 0, vy: 0, vz: 0, grounded: true,
       hp: diff.hp, maxHp: diff.hp, core: diff.core, coreMax: diff.core,
-      dashT: 0, dashCd: 0, dashCdMax: 2.4, dashX: 0, dashZ: 0,
+      dashT: 0, dashCd: 0, dashCdMax: diff.ultra ? .3 : 2.4, dashX: 0, dashZ: 0,
       dmgMul: 1, reloadMul: 1, magMul: 1, speedMul: 1, fireMul: 1,
       weapon: 0, cool: 0, reloading: 0, bloom: 0,
       arsenal: WEAPONS.map(w => ({ def: w, mag: w.mag, reserve: w.reserve })),
@@ -1442,7 +1468,7 @@
   }
   function startReload() {
     const a = P.arsenal[P.weapon];
-    if (P.reloading > 0 || a.mag >= magSize(a) || a.reserve <= 0) return;
+    if (diff.ultra || P.reloading > 0 || a.mag >= magSize(a) || a.reserve <= 0) return;
     P.reloading = a.def.reload * P.reloadMul;
     P.reloadNeed = magSize(a) - a.mag;
     vm.rk = 0; vm.pumpAge = -1;
@@ -1465,7 +1491,7 @@
       }
       return;
     }
-    a.mag--;
+    if (!diff.ultra) a.mag--;
     P.cool = 1 / (w.rate * P.fireMul);
     P.fired++;
     // federnder Rückstoß von Waffe und Kamera
@@ -1808,9 +1834,31 @@
     hudKill(pts, comboMul());
     P.kills++;
     Snd.killCombo(comboMul());
-    if (big > 2) { hitStop = e.kind === 'boss' ? .2 : .07; camera.fov -= e.kind === 'boss' ? 7 : 3; camera.updateProjectionMatrix(); }
+    killImpact(e, big, cx, cy, cz);
     const r = Math.random(), chance = e.kind === 'brute' ? 1 : .2;
     if (r < chance) dropPickup(cx, cz, Math.random() < .45 ? 'health' : 'ammo');
+  }
+
+  // Abschuss-Wucht: Freeze-Frame, Kamera-Punch, FOV-Snap, Kill-Flash, Waffenruck.
+  // Schnelle Folge-Kills (Multikill) steigern die Intensität.
+  let multiKill = 0, multiKillT = 0;
+  function killImpact(e, big, cx, cy, cz) {
+    multiKill = multiKillT > 0 ? multiKill + 1 : 0;
+    multiKillT = .55;
+    const boss = e.kind === 'boss';
+    const k = clamp(big / 2.6 + multiKill * .3, .35, boss ? 3 : 1.6);
+    hitStop = Math.max(hitStop, boss ? .32 : .035 + k * .045);
+    shake = Math.max(shake, .25 + k * .25);
+    camera.fov -= boss ? 9 : 2.5 + k * 2.5; camera.updateProjectionMatrix();
+    vm.punchV += .9 + k * .5;
+    vm.kickV += .5 + k * .4;
+    vm.rollV += rand(-1, 1) * 4 * k;
+    screenFlash = Math.max(screenFlash, .06 + k * .05);
+    killFlash = Math.min(1, Math.max(killFlash, .45 + k * .3));
+    sparks(cx, cy, cz, Math.round(14 + k * 16), e.def.color, 9 + k * 5, .45, 0, 1, 0, 1);
+    sparks(cx, cy, cz, Math.round(6 + k * 6), 0xfff2d8, 14 + k * 4, .2, 0, 1, 0, 1);
+    ringAt(cx, cy, cz, 1.2 + k * 1.4, e.def.color, .22);
+    Snd.smash(Math.min(k, 2));
   }
 
   function steer(e, tx, tz, field, dt) {
@@ -2129,7 +2177,7 @@
 
   /* ========== Wellen ========== */
   const D = { wave: 0, phase: 'idle', queue: [], spawnT: 0, t: 0 };
-  const MAX_ALIVE = 42;
+  const MAX_ALIVE = 42, ULTRA_MAX_ALIVE = 140;
 
   function beginCountdown(t) { D.phase = 'countdown'; D.t = t; }
   function startWave() {
@@ -2140,6 +2188,12 @@
     for (let i = 0; i < swarms; i++) q.push('swarm');
     if (w >= 2) for (let i = 0; i < Math.round((1 + w * .85) * (boss ? .5 : 1)); i++) q.push('gunner');
     if (w >= 3) for (let i = 0; i < Math.floor((w - 1) / 2); i++) q.push('brute');
+    if (diff.ultra) {
+      // Ultrakill: die Welle vervielfachen
+      const base = q.slice();
+      for (let r = 0; r < 5; r++) q.push(...base);
+      for (let i = 0; i < 10 + w * 6; i++) q.push('swarm');
+    }
     q.sort(() => Math.random() - .5);
     if (boss) q.unshift('boss');
     D.queue = q;
@@ -2178,9 +2232,11 @@
       if (D.t <= 0) { setNotice(''); Snd.beep(true); startWave(); }
     } else if (D.phase === 'fight') {
       D.spawnT -= dt;
-      if (D.queue.length && D.spawnT <= 0 && enemies.length < MAX_ALIVE) {
-        spawnNext();
-        D.spawnT = Math.max(.22, .62 - D.wave * .03);
+      const cap = diff.ultra ? ULTRA_MAX_ALIVE : MAX_ALIVE;
+      if (D.queue.length && D.spawnT <= 0 && enemies.length < cap) {
+        const n = diff.ultra ? Math.min(4, D.queue.length, cap - enemies.length) : 1;
+        for (let i = 0; i < n; i++) spawnNext();
+        D.spawnT = diff.ultra ? .1 : Math.max(.22, .62 - D.wave * .03);
       }
       if (!D.queue.length && !enemies.length) endWave();
     } else if (D.phase === 'break') {
@@ -2260,7 +2316,7 @@
     vignette: $('vignette'), lowhp: $('lowhp'), dmgdir: $('dmgdir'), crosshair: $('crosshair'), hitmark: $('hitmark'),
     killtag: $('killtag'), reloadring: $('reloadring'), reloadarc: $('reloadarc'), banner: $('banner'), bannerT: $('bannerT'),
     bannerS: $('bannerS'), bannerLine: document.querySelector('#banner .line'), notice: $('notice'), radar: $('radar'),
-    numbers: $('numbers'), toasts: $('toasts'), flash: $('flash'), speedlines: $('speedlines'), hud: $('hud'),
+    numbers: $('numbers'), toasts: $('toasts'), flash: $('flash'), killflash: $('killflash'), speedlines: $('speedlines'), hud: $('hud'),
   };
   // kurze Animationen über die Web Animations API, damit sie sich beliebig neu starten lassen
   const anim = (node, kf, opt) => { if (!reducedMotion && node && node.animate) return node.animate(kf, opt); return null; };
@@ -2580,6 +2636,8 @@
     speedFade = Math.max(0, speedFade - dt * 3.4);
     crossPulse = Math.max(0, crossPulse - dt * 9);
     el.flash.style.opacity = screenFlash;
+    killFlash = Math.max(0, killFlash - dt * 4.5);
+    el.killflash.style.opacity = reducedMotion ? killFlash * .4 : killFlash;
     el.speedlines.style.opacity = speedFade * .75;
     updateHudMotion(dt);
     el.vignette.style.opacity = hurtFade;
@@ -2852,7 +2910,7 @@
     clearWorld();
     resetPlayer();
     Object.assign(hudM, { x: 0, y: 0, r: 0, vx: 0, vy: 0, vr: 0, yaw: P.yaw, pitch: P.pitch });
-    hitStop = 0; screenFlash = 0; speedFade = 0;
+    hitStop = 0; screenFlash = 0; speedFade = 0; killFlash = 0; multiKill = 0; multiKillT = 0;
     Object.assign(vm, { kick: 0, kickV: 0, rot: 0, rotV: 0, roll: 0, rollV: 0, punch: 0, punchV: 0, heat: 0, pumpAge: -1, flash: 0 });
     shells.forEach(x => { x.m.visible = false; });
     decals.forEach(x => { x.m.visible = false; });
@@ -2894,13 +2952,17 @@
     resetTouch();
     if (document.exitPointerLock) document.exitPointerLock();
     const isNew = P.score > bestScore;
+    const wasLocked = !ultraUnlocked();
     if (isNew) { bestScore = P.score; store.set('ks_best_' + diffKey, String(bestScore)); }
+    refreshUltraLock();
+    const justUnlocked = wasLocked && ultraUnlocked();
     showBest();
     Snd.setSong('menu');
     $('oDiff').textContent = diff.label;
     $('overT').textContent = deathCause;
     $('overScore').textContent = P.score.toLocaleString('de-DE');
     $('overNew').classList.toggle('hidden', !isNew);
+    $('overUltra').classList.toggle('hidden', !justUnlocked);
     $('oWave').textContent = D.wave;
     $('oKills').textContent = P.kills;
     $('oAcc').textContent = (P.fired ? Math.round(P.hits / P.fired * 100) : 0) + ' %';
@@ -3304,7 +3366,8 @@
     if (state === 'playing') {
       // kurzer Trefferstopp bei großen Abschüssen
       let slow = 1;
-      if (hitStop > 0) { hitStop -= real; slow = .08; }
+      if (hitStop > 0) { hitStop -= real; slow = dying > 0 ? .08 : .015; }
+      multiKillT -= real;
       const dt = real * timeScale * slow;
       updatePlayer(dt);
       updateDirector(dt);

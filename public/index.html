@@ -25,6 +25,7 @@
     <div id="lowhp"></div>
     <div id="speedlines"></div>
     <div id="flash"></div>
+    <div id="killflash"></div>
     <div id="dmgdir"></div>
     <div id="numbers"></div>
 
@@ -104,6 +105,7 @@
         <button data-d="easy" role="radio"><b>Leicht</b><small>250 Hülle</small></button>
         <button data-d="normal" role="radio"><b>Mittel</b><small>175 Hülle</small></button>
         <button data-d="hard" role="radio"><b>Schwer</b><small>100 Hülle · Punkte ×1,5</small></button>
+        <button data-d="ultra" role="radio" class="ultra locked"><b>Ultrakill</b><small>🔒</small></button>
       </div>
       <button id="startBtn" class="primary">Einsatz starten</button>
       <button id="settingsBtn" class="ghost">Einstellungen</button>
@@ -143,6 +145,7 @@
       <h2 id="overT">Reaktor zerstört</h2>
       <div id="overScore" class="bigscore">0</div>
       <p id="overNew" class="newbest hidden">Neuer Rekord!</p>
+      <p id="overUltra" class="newbest ultra-unlock hidden">ULTRAKILL freigeschaltet – neuer Modus im Hauptmenü!</p>
       <dl>
         <dt>Schwierigkeit</dt><dd id="oDiff">Mittel</dd>
         <dt>Erreichte Welle</dt><dd id="oWave">1</dd>

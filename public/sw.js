@@ -1,5 +1,5 @@
 /* Kernschmelze – Service Worker: App offline verfügbar machen */
-const CACHE = 'kernschmelze-v2';
+const CACHE = 'kernschmelze-v3';
 const CORE = [
   './', './index.html', './style.css', './game.js', './music.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
